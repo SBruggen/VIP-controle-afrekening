@@ -34,8 +34,18 @@ df_vip_p1 = df_vip.loc[(df_vip['AanvraagDatum'] >= '2024-01-01') & (df_vip['Aanv
 # Group by 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag'
 overzicht_p1 = df_vip_p1.groupby(['AanvraagDatum', 'UwReferentie'])['Bedrag'].sum().reset_index()
 
-totaal = np.sum(df_vip_p1.Bedrag)
+#totaal = np.sum(df_vip_p1.Bedrag)
+
+# Calculate the sum of the 'Bedrag' column and rename the result
+total_sum = overzicht_p1['Bedrag'].sum()
+approw = pd.DataFrame({'Bedrag': [total_sum]}, index=['Totaal'])
+
+# Concatenate the original DataFrame and the row containing the sum
+overzicht_p1 = pd.concat([overzicht_p1, approw])
+
+# Fill NaN values with an empty string
+overzicht_p1 = overzicht_p1.fillna('')
 
 ### 4. Export to excel
-loc_excel = os.path.join('..', 'output', 'rapport_afrekening.xlsx')
+loc_excel = os.path.join('..', '..', 'output', 'rapport_afrekening.xlsx')
 overzicht_p1.to_excel(loc_excel, sheet_name='aanvragen')
