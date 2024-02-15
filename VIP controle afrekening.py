@@ -13,7 +13,27 @@ loc_vip = os.path.join('..','..' , 'data', 'ExportVIPFacturen 20240205.csv')
 ### 2. Inladen data
 df_vip_raw = pd.read_csv(loc_vip, sep=';')
 
-### 3. Dataframe bijwerken
+### 3. Functies definiëren
+def get_valid_date(prompt="Enter the date (DD-MM-YYYY): ", date_format='%d-%m-%Y'):
+    """
+    Prompt the user to enter a date in the specified format until a valid date is entered.
+
+    Args:
+    - prompt (str): The message to display to the user. Default is "Enter the date (DD-MM-YYYY): ".
+    - date_format (str): The format string for the expected date format. Default is '%d-%m-%Y'.
+
+    Returns:
+    - datetime object: The validated date as a datetime object.
+    """
+    while True:
+        date_str = input(prompt)
+        try:
+            dt_date = datetime.strptime(date_str, date_format)
+            return dt_date
+        except ValueError:
+            print("Ongeldige datumnotatie. Gelieve een datum in te geven in het formaat DD-MM-YYYY.")
+
+### 4. Dataframe bijwerken
 # vastgelegde waarden en copy dataframe
 platformretributie = float(36.5) # vastgelegde retributie op het moment van schrijven (12/02/2024)
 df_vip = df_vip_raw
@@ -28,13 +48,15 @@ df_vip["AanvraagDatum"] = pd.to_datetime(df_vip["AanvraagDatum"], format='%Y-%m-
 # Omzetten 'AanvraagDatum' naar '%Y-%m-%d'
 df_vip["AanvraagDatum"] = df_vip["AanvraagDatum"].dt.strftime('%Y-%m-%d')
 
+# start- en einddatum
+startdatum = get_valid_date(prompt = "Geef de startdatum van de facturatieperiode (DD-MM-YYYY): ")
+einddatum = get_valid_date(prompt = "Geef de einddatum van de facturatieperiode (DD-MM-YYYY): ")
+
 # Filteren van de data en copy aanmaken
-df_vip_p1 = df_vip.loc[(df_vip['AanvraagDatum'] >= '2024-01-01') & (df_vip['AanvraagDatum'] < '2024-01-18')].copy()
+df_vip_p1 = df_vip.loc[(df_vip['AanvraagDatum'] >= str(startdatum)) & (df_vip['AanvraagDatum'] < str(einddatum))].copy()
 
 # Group by 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag'
 overzicht_p1 = df_vip_p1.groupby(['AanvraagDatum', 'UwReferentie'])['Bedrag'].sum().reset_index()
-
-#totaal = np.sum(df_vip_p1.Bedrag)
 
 # Calculate the sum of the 'Bedrag' column and rename the result
 total_sum = overzicht_p1['Bedrag'].sum()
