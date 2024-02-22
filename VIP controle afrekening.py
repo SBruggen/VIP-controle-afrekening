@@ -8,7 +8,8 @@ import locale
 locale.setlocale(locale.LC_TIME, 'nl_NL.UTF-8')
 
 ### 1. Locaties
-loc_vip = os.path.join('..','..' , 'data', 'ExportVIPFacturen 20240205.csv')
+    # hardcoded (nog aan te passen)
+loc_vip = os.path.join('..','..' , 'data', 'ExportVIPFacturen 20240222.csv')
 
 ### 2. Inladen data
 df_vip_raw = pd.read_csv(loc_vip, sep=';')
@@ -35,12 +36,13 @@ def get_valid_date(prompt="Enter the date (DD-MM-YYYY): ", date_format='%d-%m-%Y
 
 ### 4. Dataframe bijwerken
 # vastgelegde waarden en copy dataframe
-platformretributie = float(36.5) # vastgelegde retributie op het moment van schrijven (12/02/2024)
+gem_ret = float(120) # vastgelegde retributie op het moment van schrijven (12/02/2024)
+platf_ret = float(36.5)
 df_vip = df_vip_raw
 
 # Bedrag aanpassen naar notatie en aandeel aan gemeente gefactureerd
 df_vip["Bedrag"] = df_vip["Bedrag"].replace(",", '.', regex=True).astype(float)    # bedragen gescheiden door een komma aanpassen naar gescheiden door een punt
-df_vip["Bedrag"] = df_vip["Bedrag"] - platformretributie # platform retributie wordt niet aan de stad doorbetaald, maar zit wel in de csv-export
+#df_vip["Bedrag"] = df_vip["Bedrag"] - platformretributie # platform retributie wordt niet aan de stad doorbetaald, maar zit wel in de csv-export
 
 # Omzetten 'AanvraagDatum' naar datetime
 df_vip["AanvraagDatum"] = pd.to_datetime(df_vip["AanvraagDatum"], format='%Y-%m-%dT%H:%M:%S.%fZ')
@@ -55,19 +57,27 @@ einddatum = get_valid_date(prompt = "Geef de einddatum van de facturatieperiode 
 # Filteren van de data en copy aanmaken
 df_vip_p1 = df_vip.loc[(df_vip['AanvraagDatum'] >= str(startdatum)) & (df_vip['AanvraagDatum'] < str(einddatum))].copy()
 
-# Group by 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag'
+# bedrag aanpassen door subtractie platformretributie 
+
+    # Identificeer rijen waar "Bedrag" gelijk is aan de gemeentelijke retributie + de platformretributie of enkel de platformretributie
+rows_to_adjust = df_vip_p1[(df_vip_p1["Bedrag"] == gem_ret + platf_ret) | (df_vip_p1["Bedrag"] == platf_ret)]
+
+    # De platformretributie aftrekken van de geïdentificeerde rijen
+df_vip_p1.loc[rows_to_adjust.index, "Bedrag"] -= platf_ret
+
+# Groepeer op 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag'
 overzicht_p1 = df_vip_p1.groupby(['AanvraagDatum', 'UwReferentie'])['Bedrag'].sum().reset_index()
 
-# Calculate the sum of the 'Bedrag' column and rename the result
+# Bereken de som van de 'Bedrag' kolom and en benoeming als 'Totaal'
 total_sum = overzicht_p1['Bedrag'].sum()
 approw = pd.DataFrame({'Bedrag': [total_sum]}, index=['Totaal'])
 
-# Concatenate the original DataFrame and the row containing the sum
+# Concatenateren van de originele dataframe en de rij met de totale som
 overzicht_p1 = pd.concat([overzicht_p1, approw])
 
-# Fill NaN values with an empty string
+# NaN waarden opvullen met een lege string
 overzicht_p1 = overzicht_p1.fillna('')
 
-### 4. Export to excel
+### 4. Exporteren naar excel
 loc_excel = os.path.join('..', '..', 'output', 'rapport_afrekening.xlsx')
 overzicht_p1.to_excel(loc_excel, sheet_name='aanvragen')
