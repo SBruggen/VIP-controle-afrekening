@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np
+#import numpy as np
 import os
 from datetime import datetime, timedelta
 import locale 
@@ -7,12 +7,12 @@ import locale
 # Set the locale to Dutch
 locale.setlocale(locale.LC_TIME, 'nl_NL.UTF-8')
 
-### 1. Locaties
-    # hardcoded (nog aan te passen)
-loc_vip = os.path.join('..','..' , 'data', 'ExportVIPFacturen 20240910.csv')
+### 1. Locaties data
+    # hardcoded (nog aan te passen, in web app data inladen via formulier)
+loc_vip = os.path.join('..','..' , 'data', 'ExportVIPFacturen 20241001.csv')
 
 ### 2. Inladen data
-df_vip_raw = pd.read_csv(loc_vip, sep=';')
+df_vip_raw = pd.read_csv(loc_vip, sep=';') # opslaan in dataframe, europese notatie csv -> ;
 
 ### 3. Functies definiëren
 def get_valid_date(prompt="Enter the date (DD-MM-YYYY): ", date_format='%d-%m-%Y'):
@@ -23,10 +23,14 @@ def get_valid_date(prompt="Enter the date (DD-MM-YYYY): ", date_format='%d-%m-%Y
     - prompt (str): The message to display to the user. Default is "Enter the date (DD-MM-YYYY): ".
     - date_format (str): The format string for the expected date format. Default is '%d-%m-%Y'.
 
+    Methods:
+    Provides input through the prompt message and checks the imput with the date_format.
+    Uses while true loop to keep trying for correct input from input. After which the date is returned according to date_format.
+
     Returns:
     - datetime object: The validated date as a datetime object.
     """
-    while True:
+    while True: 
         date_str = input(prompt)
         try:
             dt_date = datetime.strptime(date_str, date_format)
@@ -40,6 +44,9 @@ def get_valid_month_year(prompt="Enter the month and year (MM-YYYY): "):
 
     Args:
     - prompt (str): The message to display to the user. Default is "Enter the month and year (MM-YYYY): ".
+
+    Methods:
+    Calculates the first day and last day of the month. 
 
     Returns:
     - tuple: A tuple containing two datetime objects, the first and last day of the specified month.
@@ -59,34 +66,35 @@ def get_valid_month_year(prompt="Enter the month and year (MM-YYYY): "):
 
 ### 4. Dataframe bijwerken
 # vastgelegde waarden en copy dataframe
-gem_ret = float(120) # vastgelegde retributie op het moment van schrijven (12/02/2024)
-platf_ret = float(36.5)
-df_vip = df_vip_raw
+gem_ret = float(120) # vastgelegde gemeentelijke retributie op het moment van schrijven (12/02/2024)
+platf_ret = float(36.5) # vastgelegde platform retributie op het moment van schrijven (12/02/2024)
+df_vip = df_vip_raw.copy() # copy maken van de raw data (beter voor verwerking van data)
 
 # Bedrag aanpassen naar notatie en aandeel aan gemeente gefactureerd
 df_vip["Bedrag"] = df_vip["Bedrag"].replace(",", '.', regex=True).astype(float)    # bedragen gescheiden door een komma aanpassen naar gescheiden door een punt
 
 # Omzetten 'AanvraagDatum' naar datetime
-df_vip["AanvraagDatum"] = pd.to_datetime(df_vip["AanvraagDatum"], format='%Y-%m-%dT%H:%M:%S.%fZ')
+df_vip["AanvraagDatum"] = pd.to_datetime(df_vip["AanvraagDatum"], format='%Y-%m-%dT%H:%M:%S.%fZ') # datumnotatie meegeven aan dataframe opdat filteren mogelijk is op datum
 
 # start- en einddatum
-month_filter = input("Wil je de gegevens ophalen voor één volledige maan? (y/n): ")
-if month_filter in ['yes', 'y', 'ok']: # berekend start en einddatum voor de gegeven maand
+month_filter = input("Wil je de gegevens ophalen voor één volledige maand? (y/n): ")
+if month_filter in ['yes', 'y', 'ok', 'j', 'ja']: # berekend start en einddatum voor de gegeven maand bij de volgende antwoordmogelijkheden
     startdatum, einddatum = get_valid_month_year(prompt="Geef de maand en het jaar van de facturatieperiode (MM-YYYY): ")
-else: # manuele input van start en einddatum
-    startdatum = get_valid_date(prompt = "Geef de startdatum van de facturatieperiode (DD-MM-YYYY): ")
+else: # manuele input van start en einddatum indien niet in bovenstaande aantwoordmogelijheden
+    startdatum = get_valid_date(prompt = "Geef de startdatum van de facturatieperiode (DD-MM-YYYY): ") # de functie zal blijven doorgaan tot een geldige input gegeven wordt
     einddatum = get_valid_date(prompt = "Geef de einddatum van de facturatieperiode (DD-MM-YYYY): ")
 
+# ter controle output geven over start en einddatum
 print("Startdatum:", startdatum.strftime('%d-%m-%Y'))
 print("Einddatum:", einddatum.strftime('%d-%m-%Y'))
 
-# Aanpassen 'einddatum' om de laatste dag mee te nemen in het resultaat
+# Aanpassen 'einddatum' om de laatste dag mee te nemen in het resultaat (+24 uur), dit is nodig omdat de aanvraagdatum ook uurgegevens bevat en anders afgesloten wordt op 00:00:00
 einddatum += timedelta(days=1)
 
-# Filteren
+# Filteren op start- en einddatum
 df_vip_p1 = df_vip.loc[(df_vip['AanvraagDatum'] >= str(startdatum)) & (df_vip['AanvraagDatum'] <= str(einddatum))].copy()
 
-# bedrag aanpassen door subtractie platformretributie 
+# bedrag aanpassen door subtractie platformretributie (deze wordt niet gefactureerd, dus wordt afgetrokken van geheel)
 
     # Identificeer rijen waar "Bedrag" gelijk is aan de gemeentelijke retributie + de platformretributie of enkel de platformretributie
 rows_to_adjust = df_vip_p1[(df_vip_p1["Bedrag"] == gem_ret + platf_ret) | (df_vip_p1["Bedrag"] == platf_ret)]
@@ -94,7 +102,7 @@ rows_to_adjust = df_vip_p1[(df_vip_p1["Bedrag"] == gem_ret + platf_ret) | (df_vi
     # De platformretributie aftrekken van de geïdentificeerde rijen
 df_vip_p1.loc[rows_to_adjust.index, "Bedrag"] -= platf_ret
 
-# Groepeer op 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag'
+# Groepeer op 'AanvraagDatum', 'UwReferentie'en sommeer 'Bedrag': dit maakt een overzicht per aanvraag (waarin meerdere percelen kunnen zitten)
 overzicht_p1 = df_vip_p1.groupby(['AanvraagDatum', 'UwReferentie'])['Bedrag'].sum().reset_index()
 
 # Bereken de som van de 'Bedrag' kolom and en benoeming als 'Totaal'
